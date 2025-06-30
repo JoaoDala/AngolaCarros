@@ -1,63 +1,65 @@
 #!/bin/bash
 
-# main.sh - Script principal do sistema de gestão de vendas de automóveis AngolaCars
+cd "$(dirname "$0")"
 
-# Inclui os módulos
-source ./vendas.sh
-source ./clientes.sh
-source ./backup.sh
-source ./logs.sh
-source ./rede.sh
-source ./auditoria.sh
+source funcoes.sh
 
-function exibir_menu() {
-    clear
-    echo "=============================================="
-    echo "  Sistema de Gestão de Vendas de Automóveis   "
-    echo "             AngolaCars                       "
-    echo "=============================================="
-    echo "1. Gestão de Vendas"
-    echo "2. Gestão de Clientes"
-    echo "3. Backup de Dados"
-    echo "4. Gestão de Logs"
-    echo "5. Configuração de Rede"
-    echo "6. Auditoria"
-    echo "0. Sair"
-    echo "=============================================="
-    read -p "Escolha uma opção: " opcao
+login() {
+    tentativas=0
+    while [[ $tentativas -lt 3 ]]; do
+        user=$(dialog --stdout \
+                --title "TELA DE LOGIN" \
+                --inputbox "Nome de Utilizador:" \
+                8 40)
+        
+        pass=$(dialog --stdout \
+                --title "TELA DE LOGIN" \
+                --passwordbox "Senha:" \
+                8 40)
+        
+        # Verificar se é o Admin fixo
+        if [[ $user == "Admin" && $pass == "0000" ]]; then
+            export user_type="Admin"
+            bash admin.sh
+            return
+        fi
+        
+        # Verificar nos usuários cadastrados
+        if [[ -f "usuarios.txt" ]]; then
+            while IFS=: read -r username password tipo; do
+                if [[ "$user" == "$username" && "$pass" == "$password" ]]; then
+                    export user_type="$tipo"
+                    case $tipo in
+                        "Vendas") bash vendas.sh ;;
+                        "Recepcao") bash recepcao.sh ;;
+                        "Admin") bash admin.sh ;;  # Para caso adicionem outro admin
+                        *) 
+                            dialog --title "Erro" --msgbox "Tipo de usuário inválido!" 6 40
+                            return
+                            ;;
+                    esac
+                    return
+                fi
+            done < "usuarios.txt"
+        fi
+        
+        dialog --title "Erro" --msgbox "Utilizador ou senha incorreta!" 6 40
+        ((tentativas++))
+        
+        if [[ $tentativas -ge 3 ]]; then
+            dialog --title "Erro" --msgbox "Número máximo de tentativas excedido. Saindo..." 6 50
+            sleep 2
+            clear
+            exit 1
+        fi
+    done
 }
 
-while true;
-do
-    exibir_menu
-    case $opcao in
-        1)
-            menu_vendas # Chama a função do script vendas.sh
-            ;;
-        2)
-            menu_clientes # Chama a função do script clientes.sh
-            ;;
-        3)
-            menu_backup # Chama a função do script backup.sh
-            ;;
-        4)
-            menu_logs # Chama a função do script logs.sh
-            ;;
-        5)
-            menu_rede # Chama a função do script rede.sh
-            ;;
-        6)
-            menu_auditoria # Chama a função do script auditoria.sh
-            ;;
-        0)
-            echo "Saindo do sistema. Até mais!"
-            exit 0
-            ;;
-        *)
-            echo "Opção inválida. Por favor, escolha uma opção válida."
-            read -p "Pressione Enter para continuar..." # Pausa para o utilizador ler a mensagem
-            ;;
-    esac
-done
+# Verificar se é a primeira execução e criar arquivo de usuários se não existir
+if [[ ! -f "usuarios.txt" ]]; then
+    touch usuarios.txt
+    # Adiciona apenas o admin padrão
+    echo "Admin:0000:Admin" >> usuarios.txt
+fi
 
-
+login
